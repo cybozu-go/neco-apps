@@ -27,6 +27,9 @@ spec:
             - "-config.file=/etc/promtail/promtail.yaml"
             - "-config.expand-env=true"
           volumeMounts:
+            - name: audit
+              mountPath: /var/log/audit
+              readOnly: true
             - name: journal
               mountPath: /var/log/journal
               readOnly: true
@@ -35,6 +38,9 @@ spec:
           configMap:
             name: loki-promtail
           secret: null
+        - hostPath:
+            path: /var/log/audit
+          name: audit
         - hostPath:
             path: /run/log/journal
           name: journal

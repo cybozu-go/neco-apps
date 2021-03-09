@@ -290,6 +290,24 @@ data:
       #
       # Added by neco
       #
+      - job_name: kubernetes-apiservers
+        static_configs:
+          targets:
+            - localhost
+          labels:
+            __path__: /var/log/audit/*.log
+        relabel_configs:
+          - target_label: type
+            replacement: audit
+          - target_label: instance
+            replacement: ${HOSTNAME}
+        pipeline_stages:
+          - json:
+              expressions:
+                timestamp: stageTimestamp
+          - timestamp:
+              format: RFC3339Nano
+              source: timestamp
       - job_name: journal
         journal:
           json: false
