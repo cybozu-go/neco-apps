@@ -14,6 +14,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	k8sYaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // requiredResources is a list of namespace resources that the Neco has explicitly provided to unprivileged teams.
@@ -129,8 +131,51 @@ func testTeamManagement() {
 		nsOwner := map[string]string{}
 		tenantTeamList := []string{}
 
+		By("checking all targeted CRDs")
+		stdout, stderr, err := ExecAt(boot0, "kubectl", "get", "crd", "-o=json")
+		Expect(err).NotTo(HaveOccurred(), "stdout: %s, stderr: %s, err: %v", stdout, stderr, err)
+
+		crdSet := make(map[string]bool)
+		y := k8sYaml.NewYAMLReader(bufio.NewReader(bytes.NewReader(stdout)))
+		for {
+			data, err := y.Read()
+			if err == io.EOF {
+				break
+			}
+			Expect(err).ShouldNot(HaveOccurred())
+
+			crd := &apiextensions.CustomResourceDefinition{}
+			err = json.Unmarshal(data, crd)
+			Expect(err).NotTo(HaveOccurred())
+			crdSet[crd.Name] = false
+		}
+
+		for _, r := range requiredResources {
+			if _, ok := crdSet[r]; ok {
+				crdSet[r] = true
+			}
+		}
+		for _, r := range prohibitedResources {
+			if _, ok := crdSet[r]; ok {
+				crdSet[r] = true
+			}
+		}
+		for _, r := range viewableClusterResources {
+			if _, ok := crdSet[r]; ok {
+				crdSet[r] = true
+			}
+		}
+
+		uncheckedCRDList := []string{}
+		for key, val := range crdSet {
+			if !val {
+				uncheckedCRDList = append(uncheckedCRDList, key)
+			}
+		}
+		Expect(uncheckedCRDList).Should(HaveLen(0), fmt.Errorf("all crd privileged must be checked, but  %v are not checked", uncheckedCRDList))
+
 		By("listing namespaces and their owner team")
-		stdout, stderr, err := ExecAt(boot0, "kubectl", "get", "namespaces", "-o=json")
+		stdout, stderr, err = ExecAt(boot0, "kubectl", "get", "namespaces", "-o=json")
 		Expect(err).NotTo(HaveOccurred(), "stdout: %s, stderr: %s, err: %v", stdout, stderr, err)
 
 		nsList := new(corev1.NamespaceList)
